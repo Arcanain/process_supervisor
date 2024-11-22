@@ -1,0 +1,19 @@
+{
+    "processes": [
+        {
+            "name": "Process A",
+            "launch_command": "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner obstacle_simulation.py'",
+            "flag_topic": "/Aflag"
+        },
+        {
+            "name": "Process B",
+            "launch_command": "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner pure_pursit_planner.py'",
+            "flag_topic": "/Bflag"
+        },
+        {
+            "name": "Process C",
+            "launch_command": "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner obstacle_simulation.py'",
+            "flag_topic": "/Cflag"
+        }
+    ]
+}
