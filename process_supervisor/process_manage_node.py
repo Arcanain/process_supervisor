@@ -20,9 +20,9 @@ class DynamicLaunchManager(Node):
         ### CONFIGURATION ###
         # command of launch each process
         
-        self._command_1 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner obstacle_simulation.py'"
-        self._command_2 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner pure_pursuit_planner.py'"
-        self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner obstacle_simulation.py'"
+        self._command_1 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
+        self._command_2 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner emcl_pure_pursuit.py'"
+        self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit_last.py'"
         
         # topic config TODO: make config file
         # GPS
