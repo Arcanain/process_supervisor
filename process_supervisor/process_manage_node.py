@@ -20,10 +20,10 @@ class DynamicLaunchManager(Node):
         ### CONFIGURATION ###
         # command of launch each process
         
-        self._command_1 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
-        self._command_2 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner emcl_pure_pursuit.py'"
-        self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit_last.py'"
-        self._command_4 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit_04.py'"
+        self._command_1 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner obstacle_simulation.py'"
+        self._command_2 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner obstacle_simulation_02.py'"
+        self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner obstacle_simulation_03.py'"
+        self._command_4 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner obstacle_simulation_04.py'"
         
         # topic config TODO: make config file
         # GPS
@@ -33,7 +33,7 @@ class DynamicLaunchManager(Node):
         self.ps_2_topic = "goal_status2" # emcl /mcl_pose,  to swich from emcl to gps  
         self.ps_2_topic_type = Bool
 
-        # EMCL -> GPS
+        # GPS 2
         self.ps_3_topic = "goal_status3" # emcl /mcl_pose,  to swich from emcl to gps  
         self.ps_3_topic_type = Bool
 
@@ -190,13 +190,14 @@ class DynamicLaunchManager(Node):
         False: 何もしない
         '''
         #Reach = [True if distance <= 1.0 else False]
+        #self.get_logger().info("Now Process 11111111\r")
 
         # TODO condition check
         if  msg.data and (self.process_1 is not None):
             self.get_logger().info(f"Flag received on {self.ps_1_topic}. Switching to next process...")
             stop_result = self.stop_process_1()
             if stop_result:  # stop_process_1 Sucess
-                self.start_process_4()
+                self.start_process_2()
 
 
 
