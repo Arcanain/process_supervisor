@@ -23,6 +23,7 @@ class DynamicLaunchManager(Node):
         self._command_1 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
         self._command_2 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner emcl_pure_pursuit.py'"
         self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit_last.py'"
+        self._command_4 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit_04.py'"
         
         # topic config TODO: make config file
         # GPS
@@ -31,6 +32,10 @@ class DynamicLaunchManager(Node):
         # EMCL
         self.ps_2_topic = "goal_status2" # emcl /mcl_pose,  to swich from emcl to gps  
         self.ps_2_topic_type = Bool
+
+        # EMCL -> GPS
+        self.ps_3_topic = "goal_status3" # emcl /mcl_pose,  to swich from emcl to gps  
+        self.ps_3_topic_type = Bool
 
         # switch condition
         # GPS -> EMCL
@@ -48,7 +53,7 @@ class DynamicLaunchManager(Node):
         self.process_1 = None # start to the front of the roof: GPS
         self.process_2 = None # unter the roof: Lider, EMCL
         self.process_3 = None # roof to end: GPS
-
+        self.process_4 = None # roof to end: GPS
 
         ## Subscriber 
         # For process 1
@@ -66,6 +71,13 @@ class DynamicLaunchManager(Node):
             self.ps_2_callback,
             10
             )
+        
+        self.subscriber = self.create_subscription(
+            self.ps_3_topic_type,
+            self.ps_3_topic,
+            self.ps_3_callback,
+            10
+        )
 
 
         # 最初のプロセスを起動
@@ -141,6 +153,35 @@ class DynamicLaunchManager(Node):
         self.get_logger().info("Launch file started.")
         
         return True # TODO 起動の成功判定
+    
+    def stop_process_3(self)->bool:
+        '''terminate subprocess: process 2'''
+        if self.process_3:
+            self.get_logger().info("Sending SIGINT (Ctrl+C) to the subprocess...")
+            try:
+                # SIGINT を送信
+                os.kill(self.process_3.pid, signal.SIGINT)
+                self.process_3.wait()  # プロセスが終了するまで待つ
+                self.get_logger().info("Launch file stopped.")
+                result = True
+            except Exception as e:
+                self.get_logger().error(f"Failed to stop subprocess: {e}")
+                result = False
+            finally:
+                self.process_3 = None
+                return result
+            
+    # Process 4
+    def start_process_4(self)->bool:
+        """指定されたlaunchファイルを起動"""
+
+        self.get_logger().info(f"Executing command: {self._command_4}")
+        # サブプロセスを開始（bash環境を指定）
+        self.process_4 = subprocess.Popen(self._command_4, shell=True, executable='/bin/bash')
+        self.get_logger().info("Launch file started.")
+        
+        return True # TODO 起動の成功判定
+
 
 
     def ps_1_callback(self,msg:Bool):
@@ -155,7 +196,7 @@ class DynamicLaunchManager(Node):
             self.get_logger().info(f"Flag received on {self.ps_1_topic}. Switching to next process...")
             stop_result = self.stop_process_1()
             if stop_result:  # stop_process_1 Sucess
-                self.start_process_2()
+                self.start_process_4()
 
 
 
@@ -174,8 +215,20 @@ class DynamicLaunchManager(Node):
                 self.start_process_3()
                 # TODO error handling, stop_result == False, then,,,,?
 
+    
+    def ps_3_callback(self,msg:Bool):
+        '''
+        条件True: call stop process 1, after that, call launch_process2 
+        False: 何もしない
+        '''
+        #Reach = [True if distance <= 1.0 else False]
 
-
+        # TODO condition check
+        if  msg.data and (self.process_3 is not None):
+            self.get_logger().info(f"Flag received on {self.ps_3_topic}. Switching to next process...")
+            stop_result = self.stop_process_3()
+            if stop_result:  # stop_process_3 Sucess
+                self.start_process_4()
     
 
 
