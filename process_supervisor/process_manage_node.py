@@ -21,34 +21,26 @@ class DynamicLaunchManager(Node):
         # command of launch each process
         
 
-        self._command_1 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
-        self._command_2 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner emcl_pure_pursuit.py'"
-        self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit_last.py'"
-        self._command_4 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit_04.py'"
+        self._command_1 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
+        self._command_2 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner emcl_pure_pursuit.py'"
+        self._command_3 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
+        self._command_4 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch dwa_planner gnss_dwa_planner.py'"
+
 
         # topic config TODO: make config file
+        
         # GPS
-        self.ps_1_topic = "/goal_status" # gps  /gnss_odom, to swich from gps to emcl
+        self.ps_1_topic = "/gnss_emcl_1" # gps  /gnss_odom, to swich from gps to emcl
         self.ps_1_topic_type = Bool
+        
         # EMCL
-        self.ps_2_topic = "goal_status2" # emcl /mcl_pose,  to swich from emcl to gps  
+        self.ps_2_topic = "/emcl_gnss_1" # emcl /mcl_pose,  to swich from emcl to gps  
         self.ps_2_topic_type = Bool
 
         # GPS 2
-        self.ps_3_topic = "goal_status3" # emcl /mcl_pose,  to swich from emcl to gps  
+        self.ps_3_topic = "/gnss_emcl_2" # emcl /mcl_pose,  to swich from emcl to gps  
         self.ps_3_topic_type = Bool
 
-        # switch condition
-        # GPS -> EMCL
-        self.th_gps = 1.0
-        self.target_x_1 = 0.0
-        self.target_y_1 = 0.0
-        # EMCL -> GPS
-        self.th_emcl = 1.0
-        self.target_x_2 = 0.0
-        self.target_y_2 = 0.0
-        ### ############ ###
-    
 
         # subprocesses
         self.process_1 = None # start to the front of the roof: GPS
@@ -58,7 +50,7 @@ class DynamicLaunchManager(Node):
 
         ## Subscriber 
         # For process 1
-        self.gps_subscriber = self.create_subscription(
+        self.p1_subscriber = self.create_subscription(
             self.ps_1_topic_type, # TODO change
             self.ps_1_topic, # topic name
             self.ps_1_callback,
@@ -66,14 +58,14 @@ class DynamicLaunchManager(Node):
             )
         
         # For process 2 
-        self.subscriber = self.create_subscription(
+        self.p2_subscriber = self.create_subscription(
             self.ps_2_topic_type,
             self.ps_2_topic,
             self.ps_2_callback,
             10
             )
         
-        self.subscriber = self.create_subscription(
+        self.p3_subscriber = self.create_subscription(
             self.ps_3_topic_type,
             self.ps_3_topic,
             self.ps_3_callback,
@@ -85,6 +77,11 @@ class DynamicLaunchManager(Node):
         self.get_logger().info("Starting launch file...")
         self.start_process_1()
         
+        # process 1が終了し，processs2が起動したことを表すフラグ
+        self.process_1_to_2_flag = False
+        self.process_2_to_3_flag = False
+        self.process_3_to_4_flag = False
+        
 
     # Process 1
     def start_process_1(self)->bool:
@@ -95,7 +92,9 @@ class DynamicLaunchManager(Node):
         self.process_1 = subprocess.Popen(self._command_1, shell=True, executable='/bin/bash')
         self.get_logger().info("Launch file started.")
 
-        return True # TODO 成功判定
+        if not self.process_1:
+            return False
+        return True 
 
     def stop_process_1(self)->bool:
         '''terminate subprocess process 1'''
@@ -123,8 +122,9 @@ class DynamicLaunchManager(Node):
         # サブプロセスを開始（bash環境を指定）
         self.process_2 = subprocess.Popen(self._command_2, shell=True, executable='/bin/bash')
         self.get_logger().info("Launch file started.")
-
-        return True  # TODO 成功判定
+        if not self.process_2:
+            return False
+        return True 
 
     def stop_process_2(self)->bool:
         '''terminate subprocess: process 2'''
@@ -153,7 +153,9 @@ class DynamicLaunchManager(Node):
         self.process_3 = subprocess.Popen(self._command_3, shell=True, executable='/bin/bash')
         self.get_logger().info("Launch file started.")
         
-        return True # TODO 起動の成功判定
+        if not self.process_3:
+            return False
+        return True
     
     def stop_process_3(self)->bool:
         '''terminate subprocess: process 2'''
@@ -181,57 +183,54 @@ class DynamicLaunchManager(Node):
         self.process_4 = subprocess.Popen(self._command_4, shell=True, executable='/bin/bash')
         self.get_logger().info("Launch file started.")
         
-        return True # TODO 起動の成功判定
+        if not self.process_4:
+            return False
+        return True
 
 
-
+    ###################
+    #### Callbacks ####
+    ###################
     def ps_1_callback(self,msg:Bool):
-        '''
-        条件True: call stop process 1, after that, call launch_process2 
-        False: 何もしない
-        '''
-        #Reach = [True if distance <= 1.0 else False]
-        #self.get_logger().info("Now Process 11111111\r")
 
-        # TODO condition check
+        if self.process_1_to_2_flag:
+            return
         if  msg.data and (self.process_1 is not None):
             self.get_logger().info(f"Flag received on {self.ps_1_topic}. Switching to next process...")
             stop_result = self.stop_process_1()
             if stop_result:  # stop_process_1 Sucess
-                self.start_process_2()
-
-
+                 result = self.start_process_2()
+                if result == True:
+                    self.get_logger().info("Process switched from 1 to 2 successfully.")
+                    process_1_to_2_flag = True
 
 
     def ps_2_callback(self,msg:Bool):
-        '''
-        条件True: call stop process 2, after that, call launch_process_3
-        False: 何もしない
-        '''
-        # TODO condition check
 
+        if self.process_2_to_3_flag:
+            return
         if  msg.data and (self.process_2 is not None):
             self.get_logger().info(f"Flag received on {self.ps_2_topic}. Switching to next process...")
             stop_result = self.stop_process_2()
             if stop_result:  # stop_process_1 Sucess
-                self.start_process_3()
-                # TODO error handling, stop_result == False, then,,,,?
-
+                result = self.start_process_3()
+                if result == True:
+                    self.get_logger().info("Process switched from 2 to 3 successfully.")
+                    process_2_to_3_flag = True
     
+   
     def ps_3_callback(self,msg:Bool):
-        '''
-        条件True: call stop process 1, after that, call launch_process2 
-        False: 何もしない
-        '''
-        #Reach = [True if distance <= 1.0 else False]
-
-        # TODO condition check
+        
+        if self.process_3_to_4_flag:
+            return
         if  msg.data and (self.process_3 is not None):
             self.get_logger().info(f"Flag received on {self.ps_3_topic}. Switching to next process...")
             stop_result = self.stop_process_3()
             if stop_result:  # stop_process_3 Sucess
-                self.start_process_4()
-    
+                result = self.start_process_4()
+                if result == True:
+                    self.get_logger().info("Process switched from 3 to 4 successfully.")
+                    process_3_to_4_flag = True
 
 
 
