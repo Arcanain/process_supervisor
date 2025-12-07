@@ -19,26 +19,39 @@ class DynamicLaunchManager(Node):
         
         ### CONFIGURATION ###
         # command of launch each process
+        '''
+        self._command_1 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner pure_pursuit_planner.py'"
+        self._command_2 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner pure_pursuit_planner.py'"
+        self._command_3 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
+        self._command_4 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch dwa_planner gnss_dwa_planner.py'"
+        '''
         
-
         self._command_1 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
         self._command_2 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner emcl_pure_pursuit.py'"
         self._command_3 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
         self._command_4 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch dwa_planner gnss_dwa_planner.py'"
 
-
         # topic config TODO: make config file
         
-        # GPS
-        self.ps_1_topic = "/gnss_emcl_1" # gps  /gnss_odom, to swich from gps to emcl
+        # GPSの終了
+        self.ps_1_topic = "/gnss_emcl_1" 
+        #↑ スタートから屋根下入口に到達した時にture，decision_contrllerが発行する
+        # gnssからemclに切り替える
+        #self._command_2 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner emcl_pure_pursuit.py'"
         self.ps_1_topic_type = Bool
         
-        # EMCL
-        self.ps_2_topic = "/emcl_gnss_1" # emcl /mcl_pose,  to swich from emcl to gps  
+        # EMCLの終了
+        self.ps_2_topic = "/emcl_gnss_1" 
+        # 屋根下区間の終端に来た時にture，emclのときのpurepursuitが発行する
+        # emclからgnssに切り替える
+        # self._command_3 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
         self.ps_2_topic_type = Bool
 
-        # GPS 2
-        self.ps_3_topic = "/gnss_emcl_2" # emcl /mcl_pose,  to swich from emcl to gps  
+        # GPSpureからGNSSdwaへの切り替え
+        self.ps_3_topic = "/gnss_dwa_on"
+        # 信号機を渡り終わったら，purepursuitからdwaに変更する, decision_controllerが発行する
+        # gnss_purepursuitからgnss_dwaに切り替える
+        # self._command_4 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch dwa_planner gnss_dwa_planner.py'"
         self.ps_3_topic_type = Bool
 
 
@@ -200,9 +213,13 @@ class DynamicLaunchManager(Node):
             stop_result = self.stop_process_1()
             if stop_result:  # stop_process_1 Sucess
                  result = self.start_process_2()
-                if result == True:
+                 if result == True:
                     self.get_logger().info("Process switched from 1 to 2 successfully.")
-                    process_1_to_2_flag = True
+                    self.process_1_to_2_flag = True
+                    #tell_publisher = self.create_publisher(Bool,'/process_1_to_2_done',10)
+                    #msg = Bool()
+                    #msg.data = True
+                    #tell_publisher.publish(msg)
 
 
     def ps_2_callback(self,msg:Bool):
@@ -216,7 +233,7 @@ class DynamicLaunchManager(Node):
                 result = self.start_process_3()
                 if result == True:
                     self.get_logger().info("Process switched from 2 to 3 successfully.")
-                    process_2_to_3_flag = True
+                    self.process_2_to_3_flag = True
     
    
     def ps_3_callback(self,msg:Bool):
@@ -230,7 +247,7 @@ class DynamicLaunchManager(Node):
                 result = self.start_process_4()
                 if result == True:
                     self.get_logger().info("Process switched from 3 to 4 successfully.")
-                    process_3_to_4_flag = True
+                    self.process_3_to_4_flag = True
 
 
 
