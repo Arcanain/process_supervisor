@@ -31,7 +31,8 @@ class DynamicLaunchManager(Node):
         
         self._command_1 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
         self._command_2 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner emcl_pure_pursuit.py'"
-        self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit_last.py'"
+        self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch dwa_planner gnss_dwa_planner.py'"
+        #self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit_last.py'"
         #self._command_4 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch dwa_planner gnss_dwa_planner.py'"
 
         # topic config TODO: make config file
