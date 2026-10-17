@@ -64,7 +64,7 @@ class DynamicLaunchManager(Node):
         ## Subscriber 
         # For process 1
         self.p1_subscriber = self.create_subscription(
-            self.ps_1_topic_type, # TODO change
+            self.ps_1_topic_type,
             self.ps_1_topic, # topic name
             self.ps_1_callback,
             10
