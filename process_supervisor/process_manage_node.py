@@ -9,6 +9,9 @@ import json
 import signal
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseStamped
+from sensor_msgs.msg import NavSatFix
+import math
 
 from ament_index_python.packages import get_package_share_directory
 
@@ -47,6 +50,15 @@ class DynamicLaunchManager(Node):
         # self._command_3 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
         self.ps_2_topic_type = Bool
 
+        # EMCL→GNSS 切り替え条件: RTK Fix(status==2) かつ 指定ポイントから半径内
+        self.emcl_to_gnss_point = (-96.19, 110.39)   # gnss_02 の始点（GNSS 座標）
+        self.emcl_to_gnss_radius = 10.0              # [m]
+        self.gnss_msg_timeout = 1.0                  # [s] これより古いデータは使わない
+        self.last_fix_status = None
+        self.last_fix_time = None
+        self.last_gnss_xy = None
+        self.last_gnss_time = None
+
         # GPSpureからGNSSdwaへの切り替え
         self.ps_3_topic = "/gnss_dwa_on"
         # 信号機を渡り終わったら，purepursuitからdwaに変更する, decision_controllerが発行する
@@ -82,6 +94,20 @@ class DynamicLaunchManager(Node):
             self.ps_3_topic_type,
             self.ps_3_topic,
             self.ps_3_callback,
+            10
+        )
+
+        # For process 2 -> 3 (RTK Fix かつ 指定ポイント近傍)
+        self.fix_subscriber = self.create_subscription(
+            NavSatFix,
+            '/ublox_gps_node/fix',
+            self.fix_callback,
+            10
+        )
+        self.gnss_pose_subscriber = self.create_subscription(
+            PoseStamped,
+            '/gnss_pose',
+            self.gnss_pose_callback,
             10
         )
 
@@ -223,17 +249,46 @@ class DynamicLaunchManager(Node):
 
 
     def ps_2_callback(self,msg:Bool):
+        # 無効化: process 2 -> 3 は check_emcl_to_gnss() (RTK Fix かつ 指定ポイント近傍) で判定する
+        return
 
-        if self.process_2_to_3_flag:
+    def fix_callback(self, msg: NavSatFix):
+        self.last_fix_status = msg.status.status
+        self.last_fix_time = self.get_clock().now()
+        self.check_emcl_to_gnss()
+
+    def gnss_pose_callback(self, msg: PoseStamped):
+        self.last_gnss_xy = (msg.pose.position.x, msg.pose.position.y)
+        self.last_gnss_time = self.get_clock().now()
+        self.check_emcl_to_gnss()
+
+    def check_emcl_to_gnss(self):
+        '''RTK Fix かつ 指定ポイントから半径内なら process 2 -> 3 に切り替える'''
+        if self.process_2_to_3_flag or self.process_2 is None:
             return
-        if  msg.data and (self.process_2 is not None):
-            self.get_logger().info(f"Flag received on {self.ps_2_topic}. Switching to next process...")
-            stop_result = self.stop_process_2()
-            if stop_result:  # stop_process_1 Sucess
-                result = self.start_process_3()
-                if result == True:
-                    self.get_logger().info("Process switched from 2 to 3 successfully.")
-                    self.process_2_to_3_flag = True
+        if self.last_fix_time is None or self.last_gnss_time is None:
+            return
+        now = self.get_clock().now()
+        if (now - self.last_fix_time).nanoseconds * 1e-9 > self.gnss_msg_timeout:
+            return
+        if (now - self.last_gnss_time).nanoseconds * 1e-9 > self.gnss_msg_timeout:
+            return
+        if self.last_fix_status != 2:
+            return
+        px, py = self.emcl_to_gnss_point
+        dist = math.hypot(self.last_gnss_xy[0] - px, self.last_gnss_xy[1] - py)
+        if dist > self.emcl_to_gnss_radius:
+            return
+
+        self.get_logger().info(
+            f"RTK fix (status={self.last_fix_status}) and {dist:.2f} m from {self.emcl_to_gnss_point}. "
+            "Switching from process 2 to 3...")
+        stop_result = self.stop_process_2()
+        if stop_result:
+            result = self.start_process_3()
+            if result == True:
+                self.get_logger().info("Process switched from 2 to 3 successfully.")
+                self.process_2_to_3_flag = True
     
    
     def ps_3_callback(self,msg:Bool):
