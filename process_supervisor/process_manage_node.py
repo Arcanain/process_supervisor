@@ -45,8 +45,8 @@ class DynamicLaunchManager(Node):
         self.ps_2_topic_type = Bool
 
         # EMCL→GNSS 切り替え条件: RTK Fix(status==2) かつ 指定ポイントから半径内
-        self.emcl_to_gnss_point = (-96.19, 110.39)   # gnss_02 の始点（GNSS 座標）
-        self.emcl_to_gnss_radius = 10.0              # [m]
+        self.emcl_to_gnss_point =  (16.440674569874783,75.66480688603637)# (-96.19, 110.39)   # gnss_02 の始点（GNSS 座標）
+        self.emcl_to_gnss_radius = 3.0              # [m]
         self.gnss_msg_timeout = 1.0                  # [s] これより古いデータは使わない
         self.last_fix_status = None
         self.last_fix_time = None
