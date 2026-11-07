@@ -20,35 +20,28 @@ class DynamicLaunchManager(Node):
         super().__init__('dynamic_launch_manager')
         # まずはうごくものでOK 
         
-        ### CONFIGURATION ###
+        ###### PROCESS CONFIGURATION ######
         # command of launch each process
-        '''
-        self._command_1 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner pure_pursuit_planner.py'"
-        self._command_2 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner pure_pursuit_planner.py'"
-        self._command_3 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
-        self._command_4 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch dwa_planner gnss_dwa_planner.py'"
-        '''
+        # p1: スタート地点から市役所裏まで→gnss+dwa(agressive)  
+        self._command_1 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch keep_going_arcanain process_1_gnss_dwa.launch.py'"
         
-        self._command_1 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
-        self._command_2 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner emcl_pure_pursuit.py'"
-        self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch dwa_planner gnss_dwa_planner.py'"
-        #self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit_last.py'"
-        #self._command_4 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch dwa_planner gnss_dwa_planner.py'"
+        # p2: 市役所裏から屋根下入口まで→emcl+purepursuit
+        self._command_2 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch keep_going_arcanain process_2_emcl_pure_pursuit.launch.py'"
+        
+        # p3: 屋根下入口から終点まで→dwa+gnss
+        self._command_3 = "bash -c 'source ~/ros2_ws/install/setup.bash && ros2 launch keep_going_arcanain process_3_gnss_dwa.launch.py'"
+        
+        # 今回の確認走行はP3を最終プロセスとする。
 
-        # topic config TODO: make config file
-        
         # GPSの終了
         self.ps_1_topic = "/gnss_emcl_1" 
         #↑ スタートから屋根下入口に到達した時にture，decision_contrllerが発行する
-        # gnssからemclに切り替える
-        #self._command_2 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner emcl_pure_pursuit.py'"
         self.ps_1_topic_type = Bool
         
         # EMCLの終了
         self.ps_2_topic = "/emcl_gnss_1" 
-        # 屋根下区間の終端に来た時にture，emclのときのpurepursuitが発行する
+        # 屋根下区間の終端に来た時にture，emclのときのpurepursuitが発行する→まじ？
         # emclからgnssに切り替える
-        # self._command_3 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch pure_pursuit_planner odrive_gps_switch_pure_pursuit.py'"
         self.ps_2_topic_type = Bool
 
         # EMCL→GNSS 切り替え条件: RTK Fix(status==2) かつ 指定ポイントから半径内
@@ -60,19 +53,10 @@ class DynamicLaunchManager(Node):
         self.last_gnss_xy = None
         self.last_gnss_time = None
 
-        # GPSpureからGNSSdwaへの切り替え
-        self.ps_3_topic = "/gnss_dwa_on"
-        # 信号機を渡り終わったら，purepursuitからdwaに変更する, decision_controllerが発行する
-        # gnss_purepursuitからgnss_dwaに切り替える
-        # self._command_4 = "bash -c 'source ~/2025_ros2_ws/install/setup.bash && ros2 launch dwa_planner gnss_dwa_planner.py'"
-        self.ps_3_topic_type = Bool
-
-
         # subprocesses
         self.process_1 = None # start to the front of the roof: GPS
         self.process_2 = None # unter the roof: Lider, EMCL
         self.process_3 = None # roof to end: GPS
-        self.process_4 = None # roof to end: GPS
 
         ## Subscriber 
         # For process 1
@@ -91,13 +75,6 @@ class DynamicLaunchManager(Node):
             10
             )
         
-        self.p3_subscriber = self.create_subscription(
-            self.ps_3_topic_type,
-            self.ps_3_topic,
-            self.ps_3_callback,
-            10
-        )
-
         # For process 2 -> 3 (RTK Fix かつ 指定ポイント近傍)
         self.fix_subscriber = self.create_subscription(
             NavSatFix,
@@ -117,11 +94,11 @@ class DynamicLaunchManager(Node):
         self.get_logger().info("Starting launch file...")
         self.start_process_1()
         
-        # process 1が終了し，processs2が起動したことを表すフラグ
-        self.process_1_to_2_flag = False
-        self.process_2_to_3_flag = False
-        self.process_3_to_4_flag = False
+
+        self.process_1_to_2_flag = False # process 1が終了し，processs2が起動したことを表すフラグ
+        self.process_2_to_3_flag = False # process 2が終了し，processs3が起動したことを表すフラグ
         
+    ## 以上コンストラクタ
 
     # Process 1
     def start_process_1(self)->bool:
@@ -214,20 +191,8 @@ class DynamicLaunchManager(Node):
                 self.process_3 = None
                 return result
             
-    # Process 4
-    def start_process_4(self)->bool:
-        """指定されたlaunchファイルを起動"""
-
-        self.get_logger().info(f"Executing command: {self._command_4}")
-        # サブプロセスを開始（bash環境を指定）
-        self.process_4 = subprocess.Popen(self._command_4, shell=True, executable='/bin/bash')
-        self.get_logger().info("Launch file started.")
-        
-        if not self.process_4:
-            return False
-        return True
-
-
+    
+    
     ###################
     #### Callbacks ####
     ###################
@@ -291,22 +256,6 @@ class DynamicLaunchManager(Node):
                 self.get_logger().info("Process switched from 2 to 3 successfully.")
                 self.process_2_to_3_flag = True
     
-   
-    def ps_3_callback(self,msg:Bool):
-        
-        if self.process_3_to_4_flag:
-            return
-        if  msg.data and (self.process_3 is not None):
-            self.get_logger().info(f"Flag received on {self.ps_3_topic}. Switching to next process...")
-            stop_result = self.stop_process_3()
-            if stop_result:  # stop_process_3 Sucess
-                result = self.start_process_4()
-                if result == True:
-                    self.get_logger().info("Process switched from 3 to 4 successfully.")
-                    self.process_3_to_4_flag = True
-
-
-
 def main(args=None):
     rclpy.init(args=args)
     node = DynamicLaunchManager()
